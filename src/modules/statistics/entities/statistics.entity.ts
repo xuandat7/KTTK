@@ -15,6 +15,6 @@ export class Statistics {
   @Column()
   negativeFeedbacks: number;
 
-  @ManyToOne(() => Product, (product) => product.statistics)
+  @ManyToOne(() => Product, (product) => product.statistics, { onDelete: 'CASCADE' })
   product: Product;
 }

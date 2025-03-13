@@ -12,6 +12,6 @@ export class Feedback {
   @Column()
   sentiment: string;
 
-  @ManyToOne(() => Product, (product) => product.id)
+  @ManyToOne(() => Product, (product) => product.feedbacks, { onDelete: 'CASCADE' })
   product: Product;
 }
