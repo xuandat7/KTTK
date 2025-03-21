@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   console.log('Server is running on http://localhost:3000');
+  app.enableCors(); 
 
   const config = new DocumentBuilder()
     .setTitle('Feedback Analysis API')

@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Feedback } from '../feedback/entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
+import { StatisticsFactory } from './factories/statistics.factory';
+import { Statistics } from './entities/statistics.entity';
 
 @Injectable()
 export class StatisticsService {
@@ -11,9 +13,10 @@ export class StatisticsService {
     private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    private readonly statisticsFactory: StatisticsFactory, // Inject Factory
   ) {}
 
-  async getProductStatistics(productId: number) {
+  async getProductStatistics(productId: number): Promise<Statistics> {
     const product = await this.productRepository.findOne({ where: { id: productId }, relations: ['feedbacks'] });
 
     if (!product) {
@@ -25,11 +28,7 @@ export class StatisticsService {
     const positiveFeedbacks = feedbacks.filter(f => f.sentiment === 'positive').length;
     const negativeFeedbacks = feedbacks.filter(f => f.sentiment === 'negative').length;
 
-    return {
-      productId,
-      totalFeedbacks,
-      positiveFeedbacks,
-      negativeFeedbacks,
-    };
+    // Sử dụng Factory để tạo đối tượng Statistics
+    return this.statisticsFactory.create({ product, totalFeedbacks, positiveFeedbacks, negativeFeedbacks });
   }
 }

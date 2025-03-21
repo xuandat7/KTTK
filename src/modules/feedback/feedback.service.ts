@@ -3,12 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Feedback } from './entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
-
+import { FeedbackFactory } from './factories/feedback.factory';
 @Injectable()
 export class FeedbackService {
   constructor(
     @InjectRepository(Feedback)
     private readonly feedbackRepository: Repository<Feedback>,
+    private readonly feedbackFactory: FeedbackFactory,
   ) {}
 
   findAll() {
@@ -20,11 +21,7 @@ export class FeedbackService {
   }
 
   create(feedbackData: { comment: string; sentiment: string; product: Product }) {
-    const feedback = this.feedbackRepository.create({
-      comment: feedbackData.comment,
-      sentiment: feedbackData.sentiment,
-      product: feedbackData.product,
-    });
+    const feedback = this.feedbackFactory.create(feedbackData);
     return this.feedbackRepository.save(feedback);
   }
 }
