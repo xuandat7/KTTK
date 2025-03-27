@@ -5,12 +5,12 @@ import { StatisticsController } from './statistics.controller';
 import { Feedback } from '../feedback/entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
 import { Statistics } from './entities/statistics.entity';
-import { StatisticsFactory } from './factories/statistics.factory';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Feedback, Product, Statistics])],
+  imports: [TypeOrmModule.forFeature([Feedback, Product, Statistics]), CommonModule],
   controllers: [StatisticsController],
-  providers: [StatisticsService, StatisticsFactory],
-  exports: [StatisticsFactory],
+  providers: [StatisticsService],
+  exports: [],
 })
 export class StatisticsModule {}

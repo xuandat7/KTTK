@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Product } from 'src/modules/products/entities/products.entity';
 
 @Entity()
-export class Feedback {
+export class Feedback implements IEntity {
   @PrimaryGeneratedColumn()
   id: number;
 

@@ -3,7 +3,7 @@ import { Feedback } from '../../feedback/entities/feedback.entity';
 import { Statistics } from '../../statistics/entities/statistics.entity';
 
 @Entity()
-export class Product {
+export class Product implements IEntity{
   @PrimaryGeneratedColumn()
   id: number;
 

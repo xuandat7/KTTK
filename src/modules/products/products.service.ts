@@ -2,14 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/products.entity';
-import { ProductFactory } from './factories/product.factory';
+
+import { EntityFactory } from '../common/factories/entity.factory';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-    private readonly productFactory: ProductFactory,
+    private readonly productFactory: EntityFactory<Product>,
   ) {}
 
   findAll() {

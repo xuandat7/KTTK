@@ -3,13 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Feedback } from './entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
-import { FeedbackFactory } from './factories/feedback.factory';
+import { EntityFactory } from '../common/factories/entity.factory';
+
 @Injectable()
 export class FeedbackService {
   constructor(
     @InjectRepository(Feedback)
     private readonly feedbackRepository: Repository<Feedback>,
-    private readonly feedbackFactory: FeedbackFactory,
+    private readonly feedbackFactory: EntityFactory<Feedback>,
   ) {}
 
   findAll() {

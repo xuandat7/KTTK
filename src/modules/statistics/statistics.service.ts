@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Feedback } from '../feedback/entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
-import { StatisticsFactory } from './factories/statistics.factory';
 import { Statistics } from './entities/statistics.entity';
+import { EntityFactory } from '../common/factories/entity.factory';
 
 @Injectable()
 export class StatisticsService {
@@ -13,7 +13,7 @@ export class StatisticsService {
     private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-    private readonly statisticsFactory: StatisticsFactory, // Inject Factory
+    private readonly statisticsFactory: EntityFactory<Statistics>, // Inject Factory
   ) {}
 
   async getProductStatistics(productId: number): Promise<Statistics> {
