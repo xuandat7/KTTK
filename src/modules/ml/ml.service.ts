@@ -15,14 +15,16 @@ export class MLService {
       const logs: string[] = [];
 
       processPython.stdout.on('data', (data) => {
-        logs.push(...data.toString().split('\n').filter(line => line.trim()));
+        const lines = data.toString().split('\n').filter(line => line.trim());
+        logs.push(...lines);
+        console.log("[Train Output]", lines); // 🐞 log ra console NestJS
       });
 
       processPython.stderr.on('data', (data) => {
         console.error('❌ Python error (train):', data.toString());
       });
 
-      processPython.on('close', () => {
+      processPython.on('close', (code) => {
         resolve(logs);
       });
     });
@@ -37,17 +39,25 @@ export class MLService {
       );
 
       let output = '';
+      let errorOutput = '';
 
       processPython.stdout.on('data', (data) => {
         output += data.toString();
       });
 
       processPython.stderr.on('data', (data) => {
+        errorOutput += data.toString();
         console.error('❌ Python error (predict):', data.toString());
       });
 
-      processPython.on('close', () => {
-        resolve(output.trim());
+      processPython.on('close', (code) => {
+        if (output.trim()) {
+          console.log('📤 Predict output:', output.trim()); // ✅ hiển thị đầu ra rõ ràng
+          resolve(output.trim());
+        } else {
+          console.warn('⚠️ Không có kết quả trả về từ predict.py');
+          resolve(errorOutput.trim() || 'Không có output');
+        }
       });
     });
   }

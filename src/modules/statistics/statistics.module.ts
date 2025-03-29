@@ -6,11 +6,12 @@ import { Feedback } from '../feedback/entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
 import { Statistics } from './entities/statistics.entity';
 import { CommonModule } from '../common/common.module';
+import { BaseStatisticsCalculator } from './base-statistics.calculator';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Feedback, Product, Statistics]), CommonModule],
   controllers: [StatisticsController],
-  providers: [StatisticsService],
+  providers: [StatisticsService, BaseStatisticsCalculator],
   exports: [],
 })
 export class StatisticsModule {}

@@ -5,30 +5,26 @@ import { Feedback } from '../feedback/entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
 import { Statistics } from './entities/statistics.entity';
 import { EntityFactory } from '../common/factories/entity.factory';
+import { BaseStatisticsCalculator } from './base-statistics.calculator';
 
 @Injectable()
 export class StatisticsService {
   constructor(
-    @InjectRepository(Feedback)
-    private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(Product)
-    private readonly productRepository: Repository<Product>,
-    private readonly statisticsFactory: EntityFactory<Statistics>, // Inject Factory
+    private readonly productRepo: Repository<Product>,
+    private readonly baseCalculator: BaseStatisticsCalculator,
   ) {}
 
   async getProductStatistics(productId: number): Promise<Statistics> {
-    const product = await this.productRepository.findOne({ where: { id: productId }, relations: ['feedbacks'] });
+    const product = await this.productRepo.findOne({
+      where: { id: productId },
+      relations: ['feedbacks'],
+    });
 
     if (!product) {
       throw new Error(`Product with ID ${productId} not found`);
     }
 
-    const feedbacks = product.feedbacks;
-    const totalFeedbacks = feedbacks.length;
-    const positiveFeedbacks = feedbacks.filter(f => f.sentiment === 'positive').length;
-    const negativeFeedbacks = feedbacks.filter(f => f.sentiment === 'negative').length;
-
-    // Sử dụng Factory để tạo đối tượng Statistics
-    return this.statisticsFactory.create({ product, totalFeedbacks, positiveFeedbacks, negativeFeedbacks });
+    return this.baseCalculator.calculate(product);
   }
 }
