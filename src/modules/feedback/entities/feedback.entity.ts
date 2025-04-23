@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
 import { Product } from 'src/modules/products/entities/products.entity';
+import { Attribute } from 'src/modules/products/entities/attributes.entity';
 
 @Entity()
 export class Feedback implements IEntity {
@@ -12,6 +13,17 @@ export class Feedback implements IEntity {
   @Column()
   sentiment: string;
 
-  @ManyToOne(() => Product, (product) => product.feedbacks, { onDelete: 'CASCADE' })
+  @Column({ nullable: true })
+  modelId: number; // Liên kết phản hồi với mô hình đã phân tích nó
+
+  @CreateDateColumn()
+  createdAt: Date; // Lưu thời gian phản hồi được tạo
+
+  @ManyToOne(() => Product, (product) => product.feedbacks, {
+    onDelete: 'CASCADE',
+  })
   product: Product;
+
+  @ManyToOne(() => Attribute, { nullable: true })
+  attribute: Attribute;
 }

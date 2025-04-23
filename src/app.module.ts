@@ -21,7 +21,7 @@ import { MLModule } from './modules/ml/ml.module';
       synchronize: true,
     }),
     ProductsModule,
-    // ModelsModule,
+    MLModule,
     FeedbackModule,
     StatisticsModule,
     MLModule,

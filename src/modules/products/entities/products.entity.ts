@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { Feedback } from '../../feedback/entities/feedback.entity';
 import { Statistics } from '../../statistics/entities/statistics.entity';
+import { Category } from 'src/modules/category/entities/category.entity';
 
 @Entity()
 export class Product implements IEntity{
@@ -24,4 +25,7 @@ export class Product implements IEntity{
 
   @OneToMany(() => Statistics, (statistics) => statistics.product, { cascade: true })
   statistics: Statistics[];
+
+  @ManyToOne(() => Category, (category) => category.products, { onDelete: 'CASCADE' })
+  category: Category; // Thêm thuộc tính này để thiết lập quan hệ với Category
 }
