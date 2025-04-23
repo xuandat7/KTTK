@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import torch
 import numpy as np
+import argparse
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 
 from sklearn.model_selection import train_test_split
@@ -14,6 +15,12 @@ from transformers import (
     TrainingArguments,
     Trainer
 )
+
+# === 1. Nhận tham số từ command-line ===
+parser = argparse.ArgumentParser()
+parser.add_argument('--epochs', type=int, default=3, help='Số epoch huấn luyện')
+parser.add_argument('--batch_size', type=int, default=16, help='Kích thước batch')
+args = parser.parse_args()
 
 # === 1. Load & chuẩn bị dữ liệu ===
 DATA_PATH = "src/modules/ai/data"
@@ -69,9 +76,9 @@ training_args = TrainingArguments(
     evaluation_strategy="epoch",
     save_strategy="epoch",
     logging_strategy="epoch",
-    per_device_train_batch_size=16,
+    per_device_train_batch_size=args.batch_size,
     per_device_eval_batch_size=32,
-    num_train_epochs=3,
+    num_train_epochs=args.epochs,
     learning_rate=2e-5,
     save_total_limit=1,
     load_best_model_at_end=True,

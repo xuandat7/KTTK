@@ -4,8 +4,18 @@ from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # === Lấy đường dẫn model đúng chuẩn ===
-MODEL_DIR = Path(__file__).parent / "phobert-weighted"
+MODEL_DIR = Path(__file__).parent / "phobert-weighted" / "checkpoint-75"
 MODEL_DIR = str(MODEL_DIR.resolve(strict=True))  # ✅ ép kiểu và resolve tuyệt đối
+
+# Kiểm tra thư mục mô hình
+if not Path(MODEL_DIR).exists():
+    raise FileNotFoundError(f"Thư mục mô hình không tồn tại: {MODEL_DIR}")
+
+# Kiểm tra tệp mô hình
+required_files = ["model.safetensors", "config.json", "tokenizer_config.json"]
+for file in required_files:
+    if not (Path(MODEL_DIR) / file).exists():
+        raise FileNotFoundError(f"Tệp mô hình bị thiếu: {file}")
 
 # === Load tokenizer & model (local only, KHÔNG gọi HuggingFace Hub) ===
 tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, local_files_only=True)
