@@ -12,10 +12,37 @@ export class StatisticsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(Statistics)
+    private readonly statisticsRepo: Repository<Statistics>,
     private readonly baseCalculator: BaseStatisticsCalculator,
   ) {}
 
   async getProductStatistics(productId: number): Promise<Statistics> {
+    // Kiểm tra xem số liệu thống kê đã tồn tại chưa
+    let statistics = await this.statisticsRepo.findOne({
+      where: { product: { id: productId } },
+      relations: ['product'],
+    });
+
+    if (!statistics) {
+      // Nếu chưa tồn tại, tính toán và lưu số liệu thống kê
+      const product = await this.productRepo.findOne({
+        where: { id: productId },
+        relations: ['feedbacks'],
+      });
+
+      if (!product) {
+        throw new Error(`Product with ID ${productId} not found`);
+      }
+
+      statistics = await this.baseCalculator.calculate(product);
+      statistics = await this.statisticsRepo.save(statistics);
+    }
+
+    return statistics;
+  }
+
+  async updateStatistics(productId: number): Promise<void> {
     const product = await this.productRepo.findOne({
       where: { id: productId },
       relations: ['feedbacks'],
@@ -25,6 +52,23 @@ export class StatisticsService {
       throw new Error(`Product with ID ${productId} not found`);
     }
 
-    return this.baseCalculator.calculate(product);
+    const updatedStatistics = await this.baseCalculator.calculate(product);
+
+    let statistics = await this.statisticsRepo.findOne({
+      where: { product: { id: productId } },
+    });
+
+    if (statistics) {
+      statistics.totalFeedbacks = updatedStatistics.totalFeedbacks;
+      statistics.positiveFeedbacks = updatedStatistics.positiveFeedbacks;
+      statistics.negativeFeedbacks = updatedStatistics.negativeFeedbacks;
+    } else {
+      statistics = this.statisticsRepo.create({
+        ...updatedStatistics,
+        product,
+      });
+    }
+
+    await this.statisticsRepo.save(statistics);
   }
 }

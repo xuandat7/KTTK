@@ -12,6 +12,6 @@ import { BaseStatisticsCalculator } from './base-statistics.calculator';
   imports: [TypeOrmModule.forFeature([Feedback, Product, Statistics]), CommonModule],
   controllers: [StatisticsController],
   providers: [StatisticsService, BaseStatisticsCalculator],
-  exports: [],
+  exports: [StatisticsService],
 })
 export class StatisticsModule {}

@@ -6,6 +6,9 @@ import { Feedback } from '../feedback/entities/feedback.entity';
 import { MLInvoker } from '../ai/commands/ml-invoker';
 import { TrainCommand } from '../ai/commands/train.command';
 import { PredictCommand } from '../ai/commands/predict.command';
+import * as fs from 'fs';
+import * as path from 'path';
+import { spawn } from 'child_process';
 
 @Injectable()
 export class MLService {
@@ -16,21 +19,49 @@ export class MLService {
     private readonly feedbackRepository: Repository<Feedback>,
   ) {}
 
-  async trainModel(): Promise<string[]> {
-    const invoker = new MLInvoker();
-    const logs = await invoker.run(new TrainCommand());
+  async trainModel(params: { epochs: number; batch_size: number; learning_rate: number; train_subset?: number }): Promise<any> {
+    const { epochs, batch_size, learning_rate, train_subset } = params;
 
-    // Lưu thông tin model vào DB sau khi train
-    const newModel = this.modelRepository.create({
-      name: 'phobert-weighted',
-      type: 'sentiment', // hoặc 'aspect' nếu là mô hình thuộc tính
-      version: new Date().toISOString(), // ví dụ dùng timestamp làm version
-      trainedAt: new Date(),
-      description: logs.find(line => line.includes('✅')) || 'Đã train mô hình',
+    // Chuyển đổi batch_size sang số nguyên
+    const parsedParams = {
+      epochs,
+      batch_size: parseInt(batch_size.toString(), 10), // Đảm bảo batch_size là số nguyên
+      learning_rate,
+      train_subset: train_subset ? parseInt(train_subset.toString(), 10) : undefined,
+    };
+
+    const paramsPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'train_params.json');
+    fs.writeFileSync(paramsPath, JSON.stringify(parsedParams, null, 2));
+
+    const trainScriptPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'train.py');
+    const pythonProcess = spawn('python', [trainScriptPath]);
+
+    const logs: string[] = [];
+    const errorLogs: string[] = [];
+
+    return new Promise((resolve, reject) => {
+      pythonProcess.stdout.on('data', (data) => {
+        logs.push(data.toString());
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        errorLogs.push(data.toString());
+      });
+
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          const progressPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'training_progress.json');
+          if (fs.existsSync(progressPath)) {
+            const progressData = fs.readFileSync(progressPath, 'utf8');
+            resolve(JSON.parse(progressData));
+          } else {
+            resolve({ message: 'Huấn luyện hoàn thành nhưng không tìm thấy kết quả.' });
+          }
+        } else {
+          reject(new Error(`Train script exited with code ${code}. Errors: ${errorLogs.join('\n')}`));
+        }
+      });
     });
-
-    await this.modelRepository.save(newModel);
-    return logs;
   }
 
   async predict(feedbackId: number): Promise<Feedback> {

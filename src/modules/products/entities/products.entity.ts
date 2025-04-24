@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'ty
 import { Feedback } from '../../feedback/entities/feedback.entity';
 import { Statistics } from '../../statistics/entities/statistics.entity';
 import { Category } from 'src/modules/category/entities/category.entity';
+import { Attribute } from './attributes.entity';
 
 @Entity()
 export class Product implements IEntity{
@@ -17,8 +18,8 @@ export class Product implements IEntity{
   @Column()
   description: string;
 
-  @Column('text', { array: true, default: '{}' })
-  attributes: string[];
+  @OneToMany(() => Attribute, (attribute) => attribute.product, { cascade: true })
+  attributes: Attribute[];
 
   @OneToMany(() => Feedback, (feedback) => feedback.product, { cascade: true })
   feedbacks: Feedback[];

@@ -24,19 +24,18 @@ export class FeedbackController {
       properties: {
         comment: { type: 'string', example: 'Great product' },
         sentiment: { type: 'string', example: 'positive' },
-        product: {
-          type: 'object',
-          properties: { id: { type: 'number', example: 1 } },
-        },
+        productId: { type: 'number', example: 1 },
+        attributeId: { type: 'number', example: 2 },
       },
     },
   })
-  create(
+  async create(
     @Body()
     feedbackData: {
       comment: string;
       sentiment: string;
-      product: Product;
+      productId: number;
+      attributeId: number;
     },
   ) {
     return this.feedbackService.create(feedbackData);
