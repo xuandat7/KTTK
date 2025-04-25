@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Model } from './entities/model.entity';
 import { Feedback } from '../feedback/entities/feedback.entity';
+import { TrainingProgress } from './entities/training-progress.entity';
 import { MLInvoker } from '../ai/commands/ml-invoker';
 import { TrainCommand } from '../ai/commands/train.command';
 import { PredictCommand } from '../ai/commands/predict.command';
@@ -17,23 +18,55 @@ export class MLService {
     private readonly modelRepository: Repository<Model>,
     @InjectRepository(Feedback)
     private readonly feedbackRepository: Repository<Feedback>,
+    @InjectRepository(TrainingProgress)
+    private readonly trainingProgressRepository: Repository<TrainingProgress>,
   ) {}
 
-  async trainModel(params: { epochs: number; batch_size: number; learning_rate: number; train_subset?: number }): Promise<any> {
-    const { epochs, batch_size, learning_rate, train_subset } = params;
+  async trainModel(params: {
+    epochs: number;
+    batch_size: number;
+    learning_rate: number;
+    train_subset?: number;
+    dataset?: string;
+  }): Promise<any> {
+    const { epochs, batch_size, learning_rate, train_subset, dataset } = params;
 
-    // Chuyển đổi batch_size sang số nguyên
+    // Create a new TrainingProgress entry
+    const trainingProgress = this.trainingProgressRepository.create({
+      current_epoch: 0,
+      total_epochs: epochs,
+      percent: 0,
+      status: 'training',
+      loss: null,
+    });
+    await this.trainingProgressRepository.save(trainingProgress);
+
     const parsedParams = {
       epochs,
-      batch_size: parseInt(batch_size.toString(), 10), // Đảm bảo batch_size là số nguyên
+      batch_size: parseInt(batch_size.toString(), 10),
       learning_rate,
-      train_subset: train_subset ? parseInt(train_subset.toString(), 10) : undefined,
+      train_subset: train_subset
+        ? parseInt(train_subset.toString(), 10)
+        : undefined,
+      dataset,
     };
 
-    const paramsPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'train_params.json');
+    const paramsPath = path.join(
+      process.cwd(),
+      'src',
+      'modules',
+      'ai',
+      'train_params.json',
+    );
     fs.writeFileSync(paramsPath, JSON.stringify(parsedParams, null, 2));
 
-    const trainScriptPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'train.py');
+    const trainScriptPath = path.join(
+      process.cwd(),
+      'src',
+      'modules',
+      'ai',
+      'train.py',
+    );
     const pythonProcess = spawn('python', [trainScriptPath]);
 
     const logs: string[] = [];
@@ -42,23 +75,50 @@ export class MLService {
     return new Promise((resolve, reject) => {
       pythonProcess.stdout.on('data', (data) => {
         logs.push(data.toString());
+        // Update progress based on logs (example: epoch completion)
+        const progressMatch = data.toString().match(/Epoch (\d+)\/\d+/);
+        if (progressMatch) {
+          const currentEpoch = parseInt(progressMatch[1], 10);
+          const percent = (currentEpoch / epochs) * 100;
+          this.trainingProgressRepository.update(trainingProgress.id, {
+            current_epoch: currentEpoch,
+            percent,
+          });
+        }
       });
 
       pythonProcess.stderr.on('data', (data) => {
         errorLogs.push(data.toString());
       });
 
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', async (code) => {
         if (code === 0) {
-          const progressPath = path.join(process.cwd(), 'src', 'modules', 'ai', 'training_progress.json');
-          if (fs.existsSync(progressPath)) {
-            const progressData = fs.readFileSync(progressPath, 'utf8');
-            resolve(JSON.parse(progressData));
-          } else {
-            resolve({ message: 'Huấn luyện hoàn thành nhưng không tìm thấy kết quả.' });
-          }
+          this.trainingProgressRepository.update(trainingProgress.id, {
+            status: 'completed',
+            end_time: new Date(),
+          });
+
+          // Lưu thông tin mô hình sau khi huấn luyện hoàn tất
+          const model = this.modelRepository.create({
+            name: `Model_${new Date().toISOString()}`,
+            type: 'sentiment',
+            version: '1.0',
+            trainedAt: new Date(),
+            metrics: { accuracy: 0.95 }, // Ví dụ: giá trị hiệu suất
+            parameters: { epochs, batch_size, learning_rate, train_subset },
+          });
+          await this.modelRepository.save(model);
+
+          resolve({ logs });
         } else {
-          reject(new Error(`Train script exited with code ${code}. Errors: ${errorLogs.join('\n')}`));
+          this.trainingProgressRepository.update(trainingProgress.id, {
+            status: 'failed',
+          });
+          reject(
+            new Error(
+              `Train script exited with code ${code}. Errors: ${errorLogs.join('\n')}`,
+            ),
+          );
         }
       });
     });

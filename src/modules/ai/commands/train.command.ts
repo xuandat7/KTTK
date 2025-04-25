@@ -1,12 +1,16 @@
 import { MLCommand } from './ml-command.interface';
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { Repository } from 'typeorm';
+import { TrainingProgress } from '../../ml/entities/training-progress.entity';
 
 export class TrainCommand implements MLCommand {
-    getCommandArgs(): import("child_process").SpawnOptionsWithoutStdio | undefined {
-      throw new Error('Method not implemented.');
-    }
     private options: { epochs?: number; batchSize?: number } = {};
+
+    constructor(
+        private readonly trainingProgressRepository: Repository<TrainingProgress>,
+        private readonly trainingProgressId: number
+    ) {}
 
     setOptions(options: { epochs?: number; batchSize?: number }) {
         this.options = options;
@@ -31,16 +35,38 @@ export class TrainCommand implements MLCommand {
                 ]
             );
 
-            processPython.stdout.on('data', (data) => {
+            processPython.stdout.on('data', async (data) => {
                 logs.push(...data.toString().split('\n').filter(line => line.trim()));
+
+                // Update progress based on logs (example: epoch completion)
+                const progressMatch = data.toString().match(/Epoch (\d+)\/\d+/);
+                if (progressMatch) {
+                    const currentEpoch = parseInt(progressMatch[1], 10);
+                    const percent = (currentEpoch / (epochs || 3)) * 100;
+                    await this.trainingProgressRepository.update(this.trainingProgressId, {
+                        current_epoch: currentEpoch,
+                        percent,
+                    });
+                }
             });
 
             processPython.stderr.on('data', (data) => {
                 console.error('[Train Error]', data.toString());
             });
 
-            processPython.on('close', () => {
-                resolve(logs);
+            processPython.on('close', async (code) => {
+                if (code === 0) {
+                    await this.trainingProgressRepository.update(this.trainingProgressId, {
+                        status: 'completed',
+                        end_time: new Date(),
+                    });
+                    resolve(logs);
+                } else {
+                    await this.trainingProgressRepository.update(this.trainingProgressId, {
+                        status: 'failed',
+                    });
+                    reject(new Error(`Train script exited with code ${code}`));
+                }
             });
         });
     }

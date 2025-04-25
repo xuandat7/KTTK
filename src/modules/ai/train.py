@@ -23,6 +23,8 @@ from transformers import (
 
 # === 1. Đường dẫn file tham số ===
 PARAMS_PATH = os.path.join(os.path.dirname(__file__), "train_params.json")
+DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "datasets")  # Cập nhật đường dẫn
+OLD_DATA_PATH = os.path.join(os.path.dirname(__file__), "data")
 if not os.path.exists(PARAMS_PATH):
     raise FileNotFoundError(f"File tham số không tồn tại: {PARAMS_PATH}")
 
@@ -34,12 +36,12 @@ epochs = int(params.get("epochs", 3))  # Chuyển đổi sang số nguyên
 batch_size = int(params.get("batch_size", 16))  # Chuyển đổi sang số nguyên
 learning_rate = float(params.get("learning_rate", 2e-5))  # Chuyển đổi sang số thực
 train_subset = int(params.get("train_subset", None)) if params.get("train_subset") is not None else None
+dataset_file = params.get("dataset", None) or "train_product_feedback.csv"  # Sử dụng file được truyền hoặc mặc định
 
 # === 3. Load & chuẩn bị dữ liệu ===
-DATA_PATH = os.path.join(os.path.dirname(__file__), "data")
-df_train = pd.read_csv(os.path.join(DATA_PATH, "train_product_feedback.csv"))
-df_val = pd.read_csv(os.path.join(DATA_PATH, "validation_product_feedback.csv"))
-df_test = pd.read_csv(os.path.join(DATA_PATH, "test_product_feedback.csv"))
+df_train = pd.read_csv(os.path.join(DATA_PATH, dataset_file))  # Đọc file từ DATA_PATH
+df_val = pd.read_csv(os.path.join(OLD_DATA_PATH, "validation_product_feedback.csv"))
+df_test = pd.read_csv(os.path.join(OLD_DATA_PATH, "test_product_feedback.csv"))
 
 df = pd.concat([df_train, df_val, df_test]).dropna().reset_index(drop=True)
 df = df[["comment", "label"]]

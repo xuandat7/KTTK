@@ -1,1 +1,1 @@
-{"current_epoch": 3, "total_epochs": 5, "percent": 60.0, "loss": "N/A", "start_time": null, "end_time": null, "status": "training"}
+{"current_epoch": 10, "total_epochs": 10, "percent": 100, "loss": "N/A", "start_time": null, "end_time": "2025-04-25 08:22:55", "status": "completed"}

@@ -7,6 +7,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { MLModule } from './modules/ml/ml.module';
 import { CategoryModule } from './modules/category/category.module';
+import { ModelModule } from './modules/ml/model.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CategoryModule } from './modules/category/category.module';
     StatisticsModule,
     MLModule,
     CategoryModule,
+    ModelModule,
   ],
 })
 export class AppModule {}
