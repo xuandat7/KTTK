@@ -1,9 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Dataset } from './dataset.entity';
 
 @Entity('training_progress')
 export class TrainingProgress {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @ManyToOne(() => Dataset, (dataset) => dataset.trainingProgresses, { nullable: true })
+  @JoinColumn({ name: 'datasetId' })
+  dataset: Dataset;
 
   @Column({ type: 'int' })
   current_epoch: number;

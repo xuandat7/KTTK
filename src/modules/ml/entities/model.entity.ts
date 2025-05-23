@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
-export class Model implements IEntity {
+export class Model {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -14,7 +14,7 @@ export class Model implements IEntity {
   @Column()
   version: string;
 
-  @Column()
+  @Column({ type: 'timestamp' })
   trainedAt: Date;
 
   @Column({ nullable: true })
@@ -31,4 +31,29 @@ export class Model implements IEntity {
 
   @Column({ default: false })
   isActive: boolean; // Trạng thái kích hoạt của mô hình
+
+  // @Column({ type: 'json', nullable: true })
+  // trainingConfig: {
+  //   epochs: number;
+  //   batchSize: number;
+  //   learningRate: number;
+  //   trainSubset?: number;
+  // };
+
+  // @Column({ type: 'json', nullable: true })
+  // evaluationMetrics: {
+  //   f1: number;
+  //   precision: number;
+  //   recall: number;
+  //   accuracy: number;
+  // };
+
+  // @Column({ default: false })
+  // isBestModel: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

@@ -57,3 +57,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 phobert-weighted/
 src/modules/ai/phobert-weighted/
+src/modules/ai/models/
+src/modules/ai/PhoBERT_base_transformers/

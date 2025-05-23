@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
 import { Product } from 'src/modules/products/entities/products.entity';
 
 @Entity()
-export class Statistics implements IEntity {
+export class Statistics {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -15,6 +15,7 @@ export class Statistics implements IEntity {
   @Column()
   negativeFeedbacks: number;
 
-  @ManyToOne(() => Product, (product) => product.statistics, { onDelete: 'CASCADE' })
+  @OneToOne(() => Product, (product) => product.statistics, { onDelete: 'CASCADE' })
+  @JoinColumn() // Thêm JoinColumn để thiết lập quan hệ 1-1
   product: Product;
 }

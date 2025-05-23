@@ -1,22 +1,26 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  console.log('Server is running on http://localhost:3000');
-  app.enableCors(); 
 
+  // Cấu hình Swagger
   const config = new DocumentBuilder()
-    .setTitle('Feedback Analysis API')
-    .setDescription('API for managing products, feedback, and AI models')
+    .setTitle('KTTK API')
+    .setDescription('API documentation for KTTK project')
     .setVersion('1.0')
-
+    .addBearerAuth() // Thêm xác thực Bearer Token
     .build();
-
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
+  app.enableCors({
+    origin: '*', // Cho phép tất cả các nguồn gốc (có thể thay đổi theo nhu cầu)
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  });
 
   await app.listen(3000);
 }

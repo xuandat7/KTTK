@@ -8,6 +8,9 @@ import { StatisticsModule } from './modules/statistics/statistics.module';
 import { MLModule } from './modules/ml/ml.module';
 import { CategoryModule } from './modules/category/category.module';
 import { ModelModule } from './modules/ml/model.module';
+import { User } from './modules/user/entities/user.entity';
+import { AuthModule } from './modules/auth/auth.module';
+
 
 @Module({
   imports: [
@@ -29,6 +32,7 @@ import { ModelModule } from './modules/ml/model.module';
     MLModule,
     CategoryModule,
     ModelModule,
+    AuthModule
   ],
 })
 export class AppModule {}

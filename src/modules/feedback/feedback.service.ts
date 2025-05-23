@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 import { Feedback } from './entities/feedback.entity';
 import { Product } from '../products/entities/products.entity';
 import { Attribute } from '../products/entities/attributes.entity';
-import { EntityFactory } from '../common/factories/entity.factory';
 import { Statistics } from '../statistics/entities/statistics.entity';
 import { StatisticsService } from '../statistics/statistics.service';
 
@@ -15,8 +14,6 @@ export class FeedbackService {
     private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(Attribute)
     private readonly attributeRepository: Repository<Attribute>,
-    private readonly feedbackFactory: EntityFactory<Feedback>,
-    // @InjectRepository(Statistics)
     private readonly statisticsService: StatisticsService,
   ) {}
 
@@ -49,13 +46,12 @@ export class FeedbackService {
       throw new NotFoundException('Attribute not found');
     }
 
-    // Tạo feedback
-    const feedback = this.feedbackFactory.create({
-      comment: feedbackData.comment,
-      sentiment: feedbackData.sentiment,
-      product: { id: feedbackData.productId } as Product,
-      attribute,
-    });
+    // Tạo feedback trực tiếp
+    const feedback = new Feedback();
+    feedback.comment = feedbackData.comment;
+    feedback.sentiment = feedbackData.sentiment;
+    feedback.product = { id: feedbackData.productId } as Product;
+    feedback.attribute = attribute;
 
     const savedFeedback = await this.feedbackRepository.save(feedback);
     await this.statisticsService.updateStatistics(feedbackData.productId);

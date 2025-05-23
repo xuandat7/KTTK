@@ -1,1 +1,1 @@
-{"current_epoch": 10, "total_epochs": 10, "percent": 100, "loss": "N/A", "start_time": null, "end_time": "2025-04-25 08:22:55", "status": "completed"}
+{"current_epoch": 3, "total_epochs": 3, "percent": 100.0, "loss": "N/A", "start_time": null, "end_time": null, "status": "training", "metrics": {"eval_f1": 0.6547619047619048, "eval_precision": 0.7222222222222222, "eval_recall": 0.6666666666666666, "eval_accuracy": 0.6666666666666666, "eval_loss": 1.048676609992981, "eval_runtime": 2.5025, "eval_samples_per_second": 2.398, "eval_steps_per_second": 0.4, "epoch": 3.0}}

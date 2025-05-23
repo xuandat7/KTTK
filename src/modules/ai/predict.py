@@ -2,49 +2,90 @@ import sys
 import torch
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import logging
+import os
+import argparse
 
-# === Lấy đường dẫn model đúng chuẩn ===
-MODEL_DIR = Path(__file__).parent / "phobert-weighted" / "checkpoint-75"
-MODEL_DIR = str(MODEL_DIR.resolve(strict=True))  # ✅ ép kiểu và resolve tuyệt đối
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Kiểm tra thư mục mô hình
-if not Path(MODEL_DIR).exists():
-    raise FileNotFoundError(f"Thư mục mô hình không tồn tại: {MODEL_DIR}")
+def predict_sentiment(text: str, model_path: str) -> str:
+    # Chuyển đổi đường dẫn tương đối thành tuyệt đối nếu cần
+    if not os.path.isabs(model_path):
+        model_path = os.path.join(os.path.dirname(__file__), model_path)
+    
+    logger.info(f"Đang dự đoán với model tại: {model_path}")
+    
+    # Kiểm tra thư mục mô hình
+    model_dir = Path(model_path)
+    if not model_dir.exists():
+        error_msg = f"Thư mục mô hình không tồn tại: {model_path}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
-# Kiểm tra tệp mô hình
-required_files = ["model.safetensors", "config.json", "tokenizer_config.json"]
-for file in required_files:
-    if not (Path(MODEL_DIR) / file).exists():
-        raise FileNotFoundError(f"Tệp mô hình bị thiếu: {file}")
+    # Kiểm tra tệp mô hình
+    required_files = ["model.safetensors", "config.json", "tokenizer_config.json"]
+    missing_files = []
+    for file in required_files:
+        file_path = model_dir / file
+        if not file_path.exists():
+            missing_files.append(file)
+            logger.error(f"Không tìm thấy file: {file_path}")
+    
+    if missing_files:
+        error_msg = f"Thiếu các tệp mô hình: {', '.join(missing_files)}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
-# === Load tokenizer & model (local only, KHÔNG gọi HuggingFace Hub) ===
-tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, local_files_only=True)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR, local_files_only=True)
-model.eval()
+    logger.info("Đang load tokenizer và model...")
+    # Load tokenizer & model
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, local_files_only=True)
+        model.eval()
+    except Exception as e:
+        error_msg = f"Lỗi khi load model: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
-# === Check input từ dòng lệnh ===
-if len(sys.argv) < 2:
-    print("Vui lòng nhập một câu để dự đoán.")
-    sys.exit(1)
+    logger.info("Đang tokenize input...")
+    # Tokenize input
+    inputs = tokenizer(
+        text,
+        truncation=True,
+        padding="max_length",
+        max_length=256,
+        return_tensors="pt"
+    )
 
-text = sys.argv[1]
+    logger.info("Đang thực hiện dự đoán...")
+    # Dự đoán
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        predicted_class = torch.argmax(logits, dim=1).item()
 
-# === Tokenize input ===
-inputs = tokenizer(
-    text,
-    truncation=True,
-    padding="max_length",
-    max_length=256,
-    return_tensors="pt"
-)
+    # Trả về kết quả
+    labels = {0: "Tiêu cực", 1: "Bình thường", 2: "Tích cực"}
+    result = f"{predicted_class} - {labels.get(predicted_class, 'Không rõ')}"
+    logger.info(f"Kết quả dự đoán: {result}")
+    return result
 
-# === Dự đoán với mô hình ===
-with torch.no_grad():
-    outputs = model(**inputs)
-    logits = outputs.logits
-    predicted_class = torch.argmax(logits, dim=1).item()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Predict sentiment from text.")
+    parser.add_argument("--text", type=str, required=True, help="Input text for sentiment prediction")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to the sentiment model")
 
-# === In kết quả rõ nghĩa ===
-labels = {0: "Tiêu cực", 1: "Bình thường", 2: "Tích cực"}
-result_str = f"{predicted_class} - {labels.get(predicted_class, 'Không rõ')}\n"
-sys.stdout.buffer.write(result_str.encode("utf-8"))
+    args = parser.parse_args()
+
+    text = args.text
+    model_path = args.model_path
+
+    try:
+        result = predict_sentiment(text, model_path)
+        sys.stdout.buffer.write(result.encode("utf-8"))
+    except Exception as e:
+        logger.error(f"Lỗi: {str(e)}")
+        print(f"Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)

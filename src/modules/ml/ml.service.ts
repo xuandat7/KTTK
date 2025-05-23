@@ -7,12 +7,20 @@ import { TrainingProgress } from './entities/training-progress.entity';
 import { MLInvoker } from '../ai/commands/ml-invoker';
 import { TrainCommand } from '../ai/commands/train.command';
 import { PredictCommand } from '../ai/commands/predict.command';
+import { TrainParams } from '../ai/commands/ml-command.interface';
+
+import { Dataset } from './entities/dataset.entity';
+import { TrainingProgressService } from './training/training-progress.service';
+import { ModelService } from './model.service';
+import { DatasetService } from './dataset.service';
+import { TrainingService } from './training/training.service';
+import { join } from 'path';
 import * as fs from 'fs';
-import * as path from 'path';
-import { spawn } from 'child_process';
 
 @Injectable()
 export class MLService {
+  private cachedTrainingResult: { params: any; metrics: any } | null = null;
+
   constructor(
     @InjectRepository(Model)
     private readonly modelRepository: Repository<Model>,
@@ -20,111 +28,25 @@ export class MLService {
     private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(TrainingProgress)
     private readonly trainingProgressRepository: Repository<TrainingProgress>,
+    @InjectRepository(Dataset)
+    private readonly datasetRepository: Repository<Dataset>,
+
+    private readonly trainingProgressService: TrainingProgressService,
+    private readonly modelService: ModelService,
+    private readonly trainingService: TrainingService,
+
   ) {}
 
-  async trainModel(params: {
-    epochs: number;
-    batch_size: number;
-    learning_rate: number;
-    train_subset?: number;
-    dataset?: string;
-  }): Promise<any> {
-    const { epochs, batch_size, learning_rate, train_subset, dataset } = params;
-
-    // Create a new TrainingProgress entry
-    const trainingProgress = this.trainingProgressRepository.create({
-      current_epoch: 0,
-      total_epochs: epochs,
-      percent: 0,
-      status: 'training',
-      loss: null,
-    });
-    await this.trainingProgressRepository.save(trainingProgress);
-
-    const parsedParams = {
-      epochs,
-      batch_size: parseInt(batch_size.toString(), 10),
-      learning_rate,
-      train_subset: train_subset
-        ? parseInt(train_subset.toString(), 10)
-        : undefined,
-      dataset,
-    };
-
-    const paramsPath = path.join(
-      process.cwd(),
-      'src',
-      'modules',
-      'ai',
-      'train_params.json',
-    );
-    fs.writeFileSync(paramsPath, JSON.stringify(parsedParams, null, 2));
-
-    const trainScriptPath = path.join(
-      process.cwd(),
-      'src',
-      'modules',
-      'ai',
-      'train.py',
-    );
-    const pythonProcess = spawn('python', [trainScriptPath]);
-
-    const logs: string[] = [];
-    const errorLogs: string[] = [];
-
-    return new Promise((resolve, reject) => {
-      pythonProcess.stdout.on('data', (data) => {
-        logs.push(data.toString());
-        // Update progress based on logs (example: epoch completion)
-        const progressMatch = data.toString().match(/Epoch (\d+)\/\d+/);
-        if (progressMatch) {
-          const currentEpoch = parseInt(progressMatch[1], 10);
-          const percent = (currentEpoch / epochs) * 100;
-          this.trainingProgressRepository.update(trainingProgress.id, {
-            current_epoch: currentEpoch,
-            percent,
-          });
-        }
-      });
-
-      pythonProcess.stderr.on('data', (data) => {
-        errorLogs.push(data.toString());
-      });
-
-      pythonProcess.on('close', async (code) => {
-        if (code === 0) {
-          this.trainingProgressRepository.update(trainingProgress.id, {
-            status: 'completed',
-            end_time: new Date(),
-          });
-
-          // Lưu thông tin mô hình sau khi huấn luyện hoàn tất
-          const model = this.modelRepository.create({
-            name: `Model_${new Date().toISOString()}`,
-            type: 'sentiment',
-            version: '1.0',
-            trainedAt: new Date(),
-            metrics: { accuracy: 0.95 }, // Ví dụ: giá trị hiệu suất
-            parameters: { epochs, batch_size, learning_rate, train_subset },
-          });
-          await this.modelRepository.save(model);
-
-          resolve({ logs });
-        } else {
-          this.trainingProgressRepository.update(trainingProgress.id, {
-            status: 'failed',
-          });
-          reject(
-            new Error(
-              `Train script exited with code ${code}. Errors: ${errorLogs.join('\n')}`,
-            ),
-          );
-        }
-      });
-    });
+  async trainModel(params: TrainParams): Promise<any> {
+    return this.trainingService.train(params);
   }
 
-  async predict(feedbackId: number): Promise<Feedback> {
+  async saveDataset(datasetData: { name: string; type: string; file_path: string }) {
+    const dataset = this.datasetRepository.create(datasetData);
+    return await this.datasetRepository.save(dataset);
+  }
+
+  async predict(feedbackId: number, modelId?: number): Promise<Feedback> {
     const invoker = new MLInvoker();
 
     // 1. Tìm feedback cần dự đoán
@@ -136,24 +58,101 @@ export class MLService {
       throw new Error('Feedback not found');
     }
 
-    // 2. Dự đoán sentiment từ nội dung của feedback
-    const sentiment = await invoker.run(new PredictCommand(feedback.comment));
+    // 2. Lấy model để dự đoán
+    let model;
+    try {
+      if (modelId) {
+        // Nếu có modelId, lấy model theo ID
+        model = await this.modelRepository.findOne({
+          where: { id: modelId }
+        });
+        if (!model) {
+          throw new Error(`Model with ID ${modelId} not found`);
+        }
+      } else {
+        // Nếu không có modelId, lấy model mới nhất
+        model = await this.modelRepository.findOne({
+          where: { isActive: true },
+          order: { trainedAt: 'DESC' }
+        });
+        if (!model) {
+          throw new Error('No active model found');
+        }
+      }
 
-    // 3. Lấy mô hình mới nhất từ DB
-    const latestModel = await this.modelRepository.findOne({
-      where: {},
-      order: { trainedAt: 'DESC' },
-    });
+      // Kiểm tra đường dẫn model
+      if (!model.savePath) {
+        throw new Error(`Model ${model.id} has no save path`);
+      }
 
-    if (!latestModel) {
-      throw new Error('No trained model found');
+      // 3. Dự đoán sentiment
+      const sentiment = await invoker.run(new PredictCommand(feedback.comment, model.savePath));
+
+      // 4. Cập nhật feedback
+      feedback.sentiment = sentiment;
+      feedback.modelId = model.id;
+
+      return this.feedbackRepository.save(feedback);
+    } catch (error) {
+      console.error('Prediction error:', error);
+      throw new Error(`Prediction failed: ${error.message}`);
+    }
+  }
+
+  async saveModel(params: any, metrics: any): Promise<any> {
+    // Lấy model version và path từ output của train.py
+    let modelVersion = '';
+    let modelPath = '';
+
+    // Lấy version và path từ metrics (output JSON của train.py)
+    if (metrics && typeof metrics === 'object') {
+      if (metrics['MODEL_VERSION']) {
+        modelVersion = metrics['MODEL_VERSION'];
+      }
+      if (metrics['MODEL_PATH']) {
+        modelPath = metrics['MODEL_PATH'];
+      }
     }
 
-    // 4. Cập nhật sentiment và modelId vào feedback
-    feedback.sentiment = sentiment;
-    feedback.modelId = latestModel.id;
+    // Nếu không có version hoặc path thì báo lỗi
+    if (!modelVersion || !modelPath) {
+      throw new Error('Không lấy được version hoặc path từ output của train.py!');
+    }
 
-    // 5. Lưu feedback đã cập nhật
-    return this.feedbackRepository.save(feedback);
+    // Chuyển path tuyệt đối thành path tương đối (nếu cần)
+    let relativePath = modelPath;
+    if (modelPath.startsWith(process.cwd())) {
+      relativePath = modelPath.replace(process.cwd(), '').replace(/\\/g, '/').replace(/^\//, '');
+    }
+
+    // Kiểm tra thư mục model tồn tại trước khi lưu vào DB
+    const absolutePath = require('path').join(process.cwd(), relativePath);
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error('Model folder does not exist, training may have failed!');
+    }
+
+    console.log('Saving model with version:', modelVersion);
+    console.log('Absolute model path:', absolutePath);
+    console.log('Relative model path:', relativePath);
+
+    // Lưu thông tin mô hình vào cơ sở dữ liệu
+    return this.modelService.saveModel({
+      name: `Model_${modelVersion}`,
+      type: 'sentiment',
+      version: modelVersion,
+      trainedAt: new Date(),
+      metrics,
+      parameters: params,
+      savePath: relativePath, // Lưu path tương đối
+      isActive: false // Mặc định là không active
+    });
+  }
+
+  cacheTrainingResult(params: any, metrics: any): void {
+    this.cachedTrainingResult = { params, metrics };
+  }
+
+  getCachedTrainingResult(): { params: any; metrics: any } | null {
+    return this.cachedTrainingResult;
   }
 }

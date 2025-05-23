@@ -1,7 +1,12 @@
-import { Controller, Get, Param, Delete, Post, Res } from '@nestjs/common';
+import { Controller, Get, Param, Delete, Post, UseGuards } from '@nestjs/common';
 import { ModelService } from './model.service';
+import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Models')
+@ApiBearerAuth() // Thêm Bearer Auth cho Swagger
 @Controller('models')
+@UseGuards(JwtAuthGuard) // Áp dụng Guard cho toàn bộ controller
 export class ModelController {
   constructor(private readonly modelService: ModelService) {}
 
@@ -27,13 +32,10 @@ export class ModelController {
     return { message: 'Model activated successfully' };
   }
 
-  @Get(':id/download')
-  async downloadModel(@Param('id') id: number, @Res() res) {
-    const model = await this.modelService.getModelById(id);
-    if (!model || !model.savePath) {
-      throw new Error('Model not found or savePath is missing');
-    }
-
-    res.download(model.savePath);
+  @Post(':id/deactivate')
+  async deactivateModel(@Param('id') id: number) {
+    await this.modelService.deactivateModel(id);
+    return { message: 'Model deactivated successfully' };
   }
+  
 }

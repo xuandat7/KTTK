@@ -3,7 +3,7 @@ import { Product } from 'src/modules/products/entities/products.entity';
 import { Attribute } from 'src/modules/products/entities/attributes.entity';
 
 @Entity()
-export class Feedback implements IEntity {
+export class Feedback {
   @PrimaryGeneratedColumn()
   id: number;
 
