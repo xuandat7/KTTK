@@ -133,24 +133,67 @@ export class MLController {
     }
   }
 
-  @Get('predict/:feedbackId')
+  @Get('predict')
   @ApiResponse({ status: 200, description: 'Dự đoán sentiment cho feedback' })
   @ApiResponse({ status: 404, description: 'Feedback hoặc model không tìm thấy' })
   @ApiResponse({ status: 500, description: 'Lỗi khi dự đoán' })
   @ApiQuery({ name: 'modelId', required: false, type: Number })
+  @ApiQuery({ name: 'feedbackIds', required: true, description: 'Danh sách feedback ID, cách nhau bởi dấu phẩy (ví dụ: 1,2,3)' })
   async predict(
-    @Param('feedbackId') feedbackId: number,
+    @Query('feedbackIds') feedbackIds: string,
     @Query('modelId') modelId?: number
   ) {
     try {
-      if (!feedbackId) {
-        return { error: 'Missing feedbackId' };
+      if (!feedbackIds) {
+        return { error: 'Missing feedbackIds' };
+      }
+      // Chuyển chuỗi feedbackIds thành mảng số
+      const ids = feedbackIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      if (ids.length === 0) {
+        return { error: 'Invalid feedbackIds format' };
       }
 
-      const updatedFeedback = await this.mlService.predict(feedbackId, modelId);
+      const predictions = await this.mlService.predict(ids, modelId);
       return { 
         success: true,
-        data: updatedFeedback 
+        data: predictions
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('confirm-predictions')
+  @ApiResponse({ status: 200, description: 'Xác nhận và cập nhật sentiment cho nhiều feedback' })
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
+  @ApiResponse({ status: 500, description: 'Lỗi khi xác nhận dự đoán' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        feedbackIdsToConfirm: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Danh sách feedback ID cần xác nhận',
+        },
+      },
+    },
+  })
+  async confirmPredictions(
+    @Body() body: { feedbackIdsToConfirm: number[] }
+  ) {
+    try {
+      if (!body || !Array.isArray(body.feedbackIdsToConfirm) || body.feedbackIdsToConfirm.length === 0) {
+        return { error: 'Invalid request body. feedbackIdsToConfirm must be a non-empty array of numbers.' };
+      }
+
+      const updatedFeedbacks = await this.mlService.confirmSelectedPredictions(body.feedbackIdsToConfirm);
+      return { 
+        success: true,
+        data: updatedFeedbacks 
       };
     } catch (error) {
       return {

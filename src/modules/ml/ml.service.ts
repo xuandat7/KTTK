@@ -20,6 +20,7 @@ import * as fs from 'fs';
 @Injectable()
 export class MLService {
   private cachedTrainingResult: { params: any; metrics: any } | null = null;
+  private cachedPredictions: Record<number, { sentiment: string, modelId: number }> = {};
 
   constructor(
     @InjectRepository(Model)
@@ -46,57 +47,103 @@ export class MLService {
     return await this.datasetRepository.save(dataset);
   }
 
-  async predict(feedbackId: number, modelId?: number): Promise<Feedback> {
+  async predict(feedbackIds: number[], modelId?: number): Promise<{ feedbackId: number; comment: string; predictedSentiment: string; modelId: number | null }[]> {
     const invoker = new MLInvoker();
+    const results: { feedbackId: number; comment: string; predictedSentiment: string; modelId: number | null }[] = [];
 
-    // 1. Tìm feedback cần dự đoán
-    const feedback = await this.feedbackRepository.findOne({
-      where: { id: feedbackId },
-      relations: ['product', 'attribute'],
-    });
-    if (!feedback) {
-      throw new Error('Feedback not found');
-    }
+    for (const feedbackId of feedbackIds) {
+      // 1. Tìm feedback cần dự đoán
+      const feedback = await this.feedbackRepository.findOne({
+        where: { id: feedbackId },
+        relations: ['product', 'attribute'],
+      });
 
-    // 2. Lấy model để dự đoán
-    let model;
-    try {
-      if (modelId) {
-        // Nếu có modelId, lấy model theo ID
-        model = await this.modelRepository.findOne({
-          where: { id: modelId }
-        });
-        if (!model) {
-          throw new Error(`Model with ID ${modelId} not found`);
-        }
-      } else {
-        // Nếu không có modelId, lấy model mới nhất
-        model = await this.modelRepository.findOne({
-          where: { isActive: true },
-          order: { trainedAt: 'DESC' }
-        });
-        if (!model) {
-          throw new Error('No active model found');
-        }
+      if (!feedback) {
+        console.warn(`Feedback with ID ${feedbackId} not found, skipping.`);
+        continue; // Bỏ qua nếu feedback không tồn tại
       }
 
-      // Kiểm tra đường dẫn model
-      if (!model.savePath) {
-        throw new Error(`Model ${model.id} has no save path`);
+      // 2. Lấy model để dự đoán
+      let model;
+      try {
+        if (modelId) {
+          model = await this.modelRepository.findOne({ where: { id: modelId } });
+          if (!model) { throw new Error(`Model with ID ${modelId} not found`); }
+        } else {
+          model = await this.modelRepository.findOne({
+            where: { isActive: true },
+            order: { trainedAt: 'DESC' },
+          });
+          if (!model) { throw new Error('No active model found'); }
+        }
+
+        if (!model.savePath) { throw new Error(`Model ${model.id} has no save path`); }
+
+        // 3. Dự đoán sentiment
+        const predictedSentiment = await invoker.run(new PredictCommand(feedback.comment, model.savePath));
+
+        // Lưu kết quả dự đoán tạm thời vào cache
+        this.cachedPredictions[feedbackId] = { sentiment: predictedSentiment, modelId: model.id };
+
+        results.push({
+          feedbackId: feedback.id,
+          comment: feedback.comment,
+          predictedSentiment,
+          modelId: model.id,
+        });
+
+      } catch (error) {
+        console.error(`Prediction error for feedback ${feedbackId}:`, error);
+        // Thêm kết quả lỗi vào danh sách trả về
+        results.push({
+          feedbackId: feedback.id,
+          comment: feedback.comment,
+          predictedSentiment: `Error: ${error.message}`,
+          modelId: modelId || null, // Giữ nguyên modelId nếu có
+        });
+      }
+    }
+
+    return results;
+  }
+
+  async confirmSelectedPredictions(feedbackIdsToConfirm: number[]): Promise<Feedback[]> {
+    const updatedFeedbacks: Feedback[] = [];
+
+    for (const feedbackId of feedbackIdsToConfirm) {
+      // Lấy kết quả dự đoán từ cache tạm thời
+      const cached = this.cachedPredictions[feedbackId];
+
+      if (!cached) {
+        console.warn(`Predicted sentiment for feedback ${feedbackId} not found in cache, skipping.`);
+        continue; // Bỏ qua nếu không có trong cache
       }
 
-      // 3. Dự đoán sentiment
-      const sentiment = await invoker.run(new PredictCommand(feedback.comment, model.savePath));
+      const feedback = await this.feedbackRepository.findOne({
+        where: { id: feedbackId },
+        relations: ['product', 'attribute'],
+      });
 
-      // 4. Cập nhật feedback
-      feedback.sentiment = sentiment;
-      feedback.modelId = model.id;
+      if (!feedback) {
+        console.warn(`Feedback with ID ${feedbackId} not found in DB, skipping.`);
+        // Xóa khỏi cache nếu không tồn tại trong DB nữa
+        delete this.cachedPredictions[feedbackId];
+        continue;
+      }
 
-      return this.feedbackRepository.save(feedback);
-    } catch (error) {
-      console.error('Prediction error:', error);
-      throw new Error(`Prediction failed: ${error.message}`);
+      // Cập nhật feedback với sentiment và modelId từ cache
+      feedback.sentiment = cached.sentiment;
+      feedback.modelId = cached.modelId;
+
+      // Lưu vào cơ sở dữ liệu
+      const savedFeedback = await this.feedbackRepository.save(feedback);
+      updatedFeedbacks.push(savedFeedback);
+
+      // Xóa khỏi cache sau khi xác nhận
+      delete this.cachedPredictions[feedbackId];
     }
+
+    return updatedFeedbacks;
   }
 
   async saveModel(params: any, metrics: any): Promise<any> {

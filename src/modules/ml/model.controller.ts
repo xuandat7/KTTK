@@ -4,9 +4,9 @@ import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Models')
-@ApiBearerAuth() // Thêm Bearer Auth cho Swagger
+// @ApiBearerAuth() // Thêm Bearer Auth cho Swagger
 @Controller('models')
-@UseGuards(JwtAuthGuard) // Áp dụng Guard cho toàn bộ controller
+// @UseGuards(JwtAuthGuard) // Áp dụng Guard cho toàn bộ controller
 export class ModelController {
   constructor(private readonly modelService: ModelService) {}
 
